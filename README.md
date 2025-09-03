@@ -81,14 +81,4 @@ Notes
 - Always call poll_all() frequently.
 - Hot-plugging supported via polling.
 
-Example
--------
-from controller import ControllerManager
-import time
-
-mgr = ControllerManager()
-for c in mgr.controllers:
-    c.on_button_down("A", lambda ctrl: print(f"{ctrl.name}: A pressed"))
-while True:
-    mgr.poll_all()
-    time.sleep(1/60)
+Example can be found in example.py
