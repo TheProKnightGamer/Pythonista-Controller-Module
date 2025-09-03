@@ -85,7 +85,7 @@ Notes
 
 Example
 -------
-from your_module import ControllerManager
+from controller import ControllerManager
 import time
 
 mgr = ControllerManager()
