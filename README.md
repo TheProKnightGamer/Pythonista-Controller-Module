@@ -1,5 +1,4 @@
 # Pythonista-Controller-Module
-A controller module for pythonista
 ============================
 
 A Python wrapper for Apple’s GameController framework via objc_util.
