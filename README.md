@@ -80,6 +80,4 @@ Notes
 - Deadzone is per-controller.
 - Always call poll_all() frequently.
 - Hot-plugging supported via polling.
-
-Example can be found in example.py
 ----------------------------------
