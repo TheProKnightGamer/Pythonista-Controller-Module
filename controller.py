@@ -30,6 +30,12 @@ class Controller:
 
     def on_axis(self, axis, func): self.callbacks["axis"][axis] = func
 
+    def off_button_down(self, btn): self.callbacks["button_down"].pop(btn, None)
+
+    def off_button_up(self, btn): self.callbacks["button_up"].pop(btn, None)
+
+    def off_axis(self, axis): self.callbacks["axis"].pop(axis, None)
+
     def is_button_pressed(self, name): return self.prev_buttons.get(name, False)
 
     def get_axis(self, name): return self.prev_axes.get(name, 0.0)
@@ -53,8 +59,7 @@ class Controller:
                     if event:
                         event_obj = event(max(low_freq, high_freq), 1.0, 0.0, duration)
                         engine.playPattern_(event_obj)
-                    else:
-                        time.sleep(duration)
+                    time.sleep(duration)
                     engine.stop()
                     return True
             profile = getattr(self.obj, "physicalInputProfile", lambda: None)()
@@ -68,6 +73,10 @@ class Controller:
         except Exception as e:
             print(f"{self.name}: Error triggering rumble → {e}")
             return False
+
+    def __repr__(self):
+        status = "connected" if self.connected else "disconnected"
+        return f"<Controller '{self.name}' index={self.index} {status}>"
 
     def disconnect(self):
         self.connected = False
@@ -110,6 +119,14 @@ class Controller:
         if hasattr(gp, "rightThumbstick"):
             stick = gp.rightThumbstick()
             axes["RX"], axes["RY"] = axis_val(stick.xAxis()), axis_val(stick.yAxis())
+        if hasattr(gp, "leftTrigger"):
+            lt = gp.leftTrigger()
+            if lt:
+                axes["LT"] = axis_val(lt)
+        if hasattr(gp, "rightTrigger"):
+            rt = gp.rightTrigger()
+            if rt:
+                axes["RT"] = axis_val(rt)
         return axes
 
     def poll(self):
@@ -140,12 +157,18 @@ class ControllerManager:
             return
         try: GCController.startWirelessControllerDiscoveryWithCompletionHandler_(None)
         except Exception: pass
-        for _ in range(timeout):
-            arr = GCController.controllers()
-            if arr and arr.count() > 0:
-                self.controllers = [Controller(c, i) for i, c in enumerate(arr)]
-                return
-            time.sleep(1)
+        try:
+            for _ in range(timeout):
+                arr = GCController.controllers()
+                if arr and arr.count() > 0:
+                    self.controllers = [Controller(c, i) for i, c in enumerate(arr)]
+                    return
+                time.sleep(1)
+        finally:
+            try:
+                GCController.stopWirelessControllerDiscovery()
+            except Exception:
+                pass
 
     def poll_all(self):
         current_objs = list(GCController.controllers()) or []
@@ -167,16 +190,23 @@ class ControllerManager:
 
     def get_controller(self, index): return self.controllers[index] if 0 <= index < len(self.controllers) else None
 
-    def broadcast(self, func): [func(c) for c in self.controllers if c.connected]
+    def broadcast(self, func):
+        for c in self.controllers:
+            if c.connected:
+                func(c)
 
     def active_controllers(self): return [c for c in self.controllers if c.connected]
 
     def wait_for_new_controller(self, timeout=10):
-        start, prev_count = time.time(), len(self.controllers)
+        start = time.time()
+        known_hashes = {int(c.obj.hash()) for c in self.controllers}
         while time.time() - start < timeout:
             arr = GCController.controllers()
-            if arr and arr.count() > prev_count:
-                self.controllers = [Controller(c, i) for i, c in enumerate(arr)]
-                return self.controllers[-1]
+            if arr:
+                for i, obj in enumerate(arr):
+                    if int(obj.hash()) not in known_hashes:
+                        new_ctrl = Controller(obj, i)
+                        self.controllers.append(new_ctrl)
+                        return new_ctrl
             time.sleep(0.5)
         return None
